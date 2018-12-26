@@ -1,0 +1,69 @@
+#!/bin/bash
+
+host="localhost"
+user="root"
+password=""
+database=""
+collation=""
+
+function usage {
+    echo "usage: mysql-charset-converter [-H host] [-u user] [-p password] [-c charset] [-C collation] database"
+    exit
+}
+
+function check_args {
+    if [ -z "$charset" ]; then usage; fi
+    if [ -z "$database" ]; then usage; fi
+}
+
+
+function execute_query {
+    echo $1 | mysql --user="$user" --password="$password" --host="$host" 2>/dev/null
+}
+function execute_query_for_database {
+    query="ALTER DATABASE $database CHARACTER SET = $charset"
+    if [ ! -z "$collation" ] ; then query=$query" COLLATE $collation;"; fi
+    execute_query "$query"     
+}
+
+function execute_query_for_all_tables {
+    subquery='ALTER TABLE `", TABLE_SCHEMA,"`.`", TABLE_NAME, "` CONVERT TO CHARACTER SET '$charset
+    if [ ! -z "$collation" ] ; then subquery=$subquery" COLLATE $collation;"; fi
+    query='SELECT CONCAT("'$subquery'") FROM INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA = "'$database'";'
+    result=$(execute_query "$query" | tail -n +2)
+    execute_query "$result"
+}
+
+
+while getopts "H:u:p:c:C:h" argv
+do
+    case $argv in
+        H)
+            host=$OPTARG
+            ;;
+        u)
+            user=$OPTARG
+            ;;
+        p)
+            password=$OPTARG
+            ;;
+        c)
+            charset=$OPTARG
+            ;;
+        C)
+            collation=$OPTARG
+            ;;
+        h)
+            usage
+            exit
+            ;;
+    esac
+done
+shift $(expr $OPTIND - 1 )
+database=$1
+
+check_args
+execute_query_for_database
+execute_query_for_all_tables
+
+
